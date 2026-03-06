@@ -4,7 +4,7 @@ A real-time eye tracking system that detects and classifies eye states (open, cl
 
 ## How It Works
 
-The system captures webcam frames, detects facial landmarks using MediaPipe's Face Mesh model, and extracts 6 key landmarks per eye. It then computes the **Eye Aspect Ratio (EAR)** — a geometric measure of how open each eye is — and classifies the eye state based on a configurable threshold.
+The system captures webcam frames, detects facial landmarks using MediaPipe's Face Mesh model, and extracts 6 key landmarks per eye. It then computes the **Eye Aspect Ratio (EAR)**, a geometric measure of how open each eye is, and classifies the eye state based on a configurable threshold.
 
 **EAR Formula:**
 
