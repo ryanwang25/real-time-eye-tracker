@@ -14,6 +14,11 @@ class EyeTracker:
 
     LEFT_EYE = [362, 385, 387, 263, 373, 380]
     RIGHT_EYE = [33, 160, 158, 133, 153, 144]
+    CONSEC_FRAMES = 3
+    HORIZONTAL_RATIO_THRESHOLD = 0.2
+    VERTICAL_RATIO_THRESHOLD = 0.55
+    
+
     
 
     def __init__(self, ear_threshold=0.21, max_faces=1, detection_conf=0.5, tracking_conf=0.5):
@@ -37,6 +42,11 @@ class EyeTracker:
         min_tracking_confidence=tracking_conf
     )
         self.cap = cv2.VideoCapture(0)
+        self.closed_frame_count = 0
+        self.current_state = "OPEN"
+        self.current_color = (0, 255, 0)
+        
+
         if not self.cap.isOpened():
             raise RuntimeError("Could not open webcam")
         # Set EAR threshold
@@ -90,17 +100,6 @@ class EyeTracker:
         return points
         
     def process_frame(self, frame):
-        """
-        Process a single video frame: detect face, extract eye landmarks,
-        compute EAR, classify eye state, and draw annotations.
-
-        Args:
-            frame: BGR image (NumPy array) from the webcam.
-
-        Returns:
-            Annotated BGR frame with eye contours, EAR values, and state label.
-        """
-        # mirror the frame for intuitive selfie-view
         frame = cv2.flip(frame, 1)
         frame.flags.writeable = False
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -115,61 +114,70 @@ class EyeTracker:
             left_eye = self.get_eye_landmarks(face_landmarks, self.LEFT_EYE, w, h)
             right_eye = self.get_eye_landmarks(face_landmarks, self.RIGHT_EYE, w, h)
 
-            for point in left_eye:
-                cv2.circle(frame, point, 2, (0, 255, 0), -1)
-            for point in right_eye:
-                cv2.circle(frame, point, 2, (0, 255, 0), -1)
+            left_valid = self.valid_landmarks(left_eye, w, h)
+            right_valid = self.valid_landmarks(right_eye, w, h)
 
-            # calculate EAR
-            left_ear = self.calculate_ear(left_eye)
-            right_ear = self.calculate_ear(right_eye)
-            avg_ear = (left_ear + right_ear) / 2
+            # only draw landmarks that are valid
+            if left_valid:
+                for point in left_eye:
+                    cv2.circle(frame, point, 2, (0, 255, 0), -1)
+            if right_valid:
+                for point in right_eye:
+                    cv2.circle(frame, point, 2, (0, 255, 0), -1)
 
-            # calculating face turned
-            nose = face_landmarks.landmark[1]
-            chin = face_landmarks.landmark[152]
-            forehead = face_landmarks.landmark[10]
+            if left_valid and right_valid:
+                left_ear = self.calculate_ear(left_eye)
+                right_ear = self.calculate_ear(right_eye)
 
-            left_edge = face_landmarks.landmark[234]
-            right_edge = face_landmarks.landmark[454]
+                # face orientation check
+                nose = face_landmarks.landmark[1]
+                chin = face_landmarks.landmark[152]
+                forehead = face_landmarks.landmark[10]
+                left_edge = face_landmarks.landmark[234]
+                right_edge = face_landmarks.landmark[454]
 
-            left_dist = abs(nose.x - left_edge.x)
-            right_dist = abs(nose.x - right_edge.x)
+                left_dist = abs(nose.x - left_edge.x)
+                right_dist = abs(nose.x - right_edge.x)
+                top_dist = abs(nose.y - forehead.y)
+                bottom_dist = abs(nose.y - chin.y)
 
-            top_dist = abs(nose.y - forehead.y)
-            bottom_dist = abs(nose.y - chin.y)
+                vertical_ratio = min(top_dist, bottom_dist) / max(top_dist, bottom_dist)
+                horizontal_ratio = min(left_dist, right_dist) / max(left_dist, right_dist)
 
-            vertical_ratio = min(top_dist, bottom_dist) / max(top_dist, bottom_dist)
+                if horizontal_ratio < self.HORIZONTAL_RATIO_THRESHOLD or vertical_ratio < self.VERTICAL_RATIO_THRESHOLD:
+                    self.closed_frame_count = 0
+                    self.current_state = "FACE TURNED"
+                    self.current_color = (255, 255, 0)
+                elif left_ear < self.ear_threshold and right_ear < self.ear_threshold:
+                    self.closed_frame_count += 1
+                    if self.closed_frame_count >= self.CONSEC_FRAMES:
+                        self.current_state = "CLOSED"
+                        self.current_color = (0, 0, 255)
+                elif left_ear < self.ear_threshold and right_ear >= self.ear_threshold:
+                    self.closed_frame_count = 0
+                    self.current_state = "RIGHT WINK"
+                    self.current_color = (0, 255, 255)
+                elif right_ear < self.ear_threshold and left_ear >= self.ear_threshold:
+                    self.closed_frame_count = 0
+                    self.current_state = "LEFT WINK"
+                    self.current_color = (0, 255, 255)
+                else:
+                    self.closed_frame_count = 0
+                    self.current_state = "OPEN"
+                    self.current_color = (0, 255, 0)
 
-            horizontal_ratio = min(left_dist, right_dist) / max(left_dist, right_dist)
-
-            if horizontal_ratio < 0.1 or vertical_ratio < 0.55:
-                state = "FACE TURNED"
-                color = (255, 255, 0)
-
-             # classify eye state using per-eye EAR to detect winks
-            elif left_ear < self.ear_threshold and right_ear < self.ear_threshold:
-                state = "CLOSED"
-                color = (0, 0, 255)
-            elif left_ear < self.ear_threshold and right_ear >= self.ear_threshold:
-                state = "RIGHT WINK"
-                color = (0, 255, 255)
-            elif right_ear < self.ear_threshold and left_ear >= self.ear_threshold:
-                state = "LEFT WINK"
-                color = (0, 255, 255)
+                cv2.putText(frame, f"L EAR: {left_ear:.2f}", (30, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                cv2.putText(frame, f"R EAR: {right_ear:.2f}", (30, 60),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                cv2.putText(frame, f"State: {self.current_state}", (30, 90),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, self.current_color, 2)
             else:
-                state = "OPEN"
-                color = (0, 255, 0)
-
-            # overlay EAR values and state on the frame
-            cv2.putText(frame, f"L EAR: {left_ear:.2f}", (30, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            cv2.putText(frame, f"R EAR: {right_ear:.2f}", (30, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            cv2.putText(frame, f"State: {state}", (30, 90),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+                # one or both eyes have invalid landmarks
+                self.closed_frame_count = 0
+                cv2.putText(frame, "Eye partially occluded", (80, 120),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 165, 255), 2)
         else:
-             # no face found — display warning message
             cv2.putText(frame, "No face detected", (80, 120),
                     cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
         return frame
@@ -208,8 +216,14 @@ class EyeTracker:
         """
         return np.linalg.norm(pt1 - pt2) # returns 2 norm by default
     
+    def valid_landmarks(self, points, w, h):
+        for x, y in points:
+            if x < 0 or x >= w or y < 0 or y >= h:
+                return False
+        return True
+    
 if __name__ == "__main__":
-    tracker = EyeTracker(ear_threshold=0.18)
+    tracker = EyeTracker()
     tracker.run()
 
 
