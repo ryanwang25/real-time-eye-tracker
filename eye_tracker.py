@@ -25,6 +25,7 @@ class EyeTracker:
             max_faces: Maximum number of faces to detect (default 1).
             detection_conf: Minimum confidence for initial face detection (0.0-1.0).
             tracking_conf: Minimum confidence for face tracking between frames (0.0-1.0).
+            console_print_every: Print detection status to console every N frames.
         
         Raises:
             RuntimeError: If webcam cannot be opened.
@@ -104,6 +105,21 @@ class EyeTracker:
         return points
         
     def process_frame(self, frame):
+        """
+        Process a single video frame: detect face, extract eye landmarks,
+        compute EAR, classify eye state, and draw annotations.
+
+        Uses consecutive frame counting to reduce classification jitter.
+        Validates that eye landmarks are within frame bounds before
+        computing EAR to handle partial occlusion.
+
+        Args:
+            frame: BGR image (NumPy array) from the webcam.
+
+        Returns:
+            Annotated BGR frame with eye contours, EAR values, state label,
+            and frame counter.
+        """
         frame = cv2.flip(frame, 1)
         frame.flags.writeable = False
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -218,6 +234,20 @@ class EyeTracker:
         return np.linalg.norm(pt1 - pt2) # returns 2 norm by default
     
     def valid_landmarks(self, points, w, h):
+        """
+        Check whether all landmark points fall within the frame boundaries.
+
+        Used to detect partial occlusion where MediaPipe returns landmarks
+        for eyes that are partially or fully off-screen.
+
+        Args:
+            points: List of (x, y) tuples in pixel coordinates.
+            w: Width of the video frame in pixels.
+            h: Height of the video frame in pixels.
+
+        Returns:
+            True if all points are within bounds, False otherwise.
+    """
         for x, y in points:
             if x < 0 or x >= w or y < 0 or y >= h:
                 return False
