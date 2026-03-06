@@ -51,10 +51,10 @@ class EyeTracker:
         self.ear_threshold = ear_threshold
 
         # Uncomment to verify technical specs (resolution >= 640x480, FPS >= 30)
-        w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = self.cap.get(cv2.CAP_PROP_FPS)
-        print(f"Resolution: {w}x{h}, FPS: {fps}")
+        # w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        # h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        # fps = self.cap.get(cv2.CAP_PROP_FPS)
+        # print(f"Resolution: {w}x{h}, FPS: {fps}")
         
         
         
