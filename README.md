@@ -20,14 +20,15 @@ Where p1/p4 are the horizontal eye corners and p2, p3, p5, p6 are the vertical e
 - Eye Aspect Ratio (EAR) computation and on-screen display
 - Eye contour landmark visualization
 - Consecutive frame counting to reduce classification jitter (worked better than temporal smoothing)
+- Partial occlusion detection via landmark bounds validation
 - Handling of edge cases (no face detected, camera failure, face partially out of frame)
 
 ## Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/eye_tracking_project.git
-cd eye_tracking_project
+git clone https://github.com/yourusername/real-time-eye-tracker.git
+cd real-time-eye-tracker
 ```
 
 2. Create and activate a virtual environment:
@@ -63,7 +64,7 @@ tracker = EyeTracker(ear_threshold=0.19)
 ## Project Structure
 
 ```
-eye_tracking_project/
+real-time-eye-tracker/
 ├── eye_tracker.py        # Main implementation (EyeTracker class)
 ├── requirements.txt      # Python dependencies
 ├── README.md             # Project documentation
