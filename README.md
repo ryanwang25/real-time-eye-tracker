@@ -56,7 +56,8 @@ Press `q` to quit the application.
 The EAR threshold can be adjusted when creating the tracker. The default is 0.21, but values between 0.18–0.25 may work better depending on your face and lighting:
 
 ```python
-tracker = EyeTracker()
+tracker = EyeTracker(ear_threshold=0.19)
+# there are also other optional arguments you can fine-tune (see source code for more details)
 ```
 
 ## Project Structure
