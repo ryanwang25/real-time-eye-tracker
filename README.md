@@ -19,9 +19,8 @@ Where p1/p4 are the horizontal eye corners and p2, p3, p5, p6 are the vertical e
 - Real-time eye state classification (OPEN / CLOSED / LEFT WINK / RIGHT WINK)
 - Eye Aspect Ratio (EAR) computation and on-screen display
 - Eye contour landmark visualization
-- Face orientation detection (warns when face is turned sideways)
-- Temporal smoothing to reduce classification jitter
-- Graceful handling of edge cases (no face detected, camera failure)
+- Consecutive frame counting to reduce classification jitter (worked better than temporal smoothing)
+- Handling of edge cases (no face detected, camera failure, face partially out of frame)
 
 ## Installation
 
@@ -84,6 +83,6 @@ eye_tracking_project/
 ## Known Limitations
 
 - EAR-based classification can be unreliable when the face is not roughly facing the camera. A face orientation check mitigates this but does not fully solve it at extreme angles.
-- The EAR threshold is sensitive to individual face geometry
-- Rapid blinks may occasionally be missed if temporal smoothing window is too large.
-- Wink detection can sometimes trigger false positives when one eye is partially occluded.
+- The EAR threshold is sensitive to individual face geometry.
+- Rapid blinks may occasionally be missed for higher numbers of consecutive frame counting
+- Extreme angles of face orientation can cause false positives and negatives.

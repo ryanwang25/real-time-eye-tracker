@@ -15,13 +15,8 @@ class EyeTracker:
     LEFT_EYE = [362, 385, 387, 263, 373, 380]
     RIGHT_EYE = [33, 160, 158, 133, 153, 144]
     CONSEC_FRAMES = 3
-    HORIZONTAL_RATIO_THRESHOLD = 0.2
-    VERTICAL_RATIO_THRESHOLD = 0.55
     
-
-    
-
-    def __init__(self, ear_threshold=0.21, max_faces=1, detection_conf=0.5, tracking_conf=0.5):
+    def __init__(self, ear_threshold=0.21, max_faces=1, detection_conf=0.5, tracking_conf=0.5, console_print_every=1):
         """
         Initialize the EyeTracker with MediaPipe Face Mesh and webcam.
 
@@ -43,6 +38,9 @@ class EyeTracker:
     )
         self.cap = cv2.VideoCapture(0)
         self.closed_frame_count = 0
+        self.wink_frame_count = 0
+        self.frame_count = 0
+        self.console_print_every = console_print_every
         self.current_state = "OPEN"
         self.current_color = (0, 255, 0)
         
@@ -51,6 +49,12 @@ class EyeTracker:
             raise RuntimeError("Could not open webcam")
         # Set EAR threshold
         self.ear_threshold = ear_threshold
+
+        # Uncomment to verify technical specs (resolution >= 640x480, FPS >= 30)
+        # w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        # h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        # fps = self.cap.get(cv2.CAP_PROP_FPS)
+        # print(f"Resolution: {w}x{h}, FPS: {fps}")
         
         
         
@@ -129,49 +133,39 @@ class EyeTracker:
                 left_ear = self.calculate_ear(left_eye)
                 right_ear = self.calculate_ear(right_eye)
 
-                # face orientation check
-                nose = face_landmarks.landmark[1]
-                chin = face_landmarks.landmark[152]
-                forehead = face_landmarks.landmark[10]
-                left_edge = face_landmarks.landmark[234]
-                right_edge = face_landmarks.landmark[454]
-
-                left_dist = abs(nose.x - left_edge.x)
-                right_dist = abs(nose.x - right_edge.x)
-                top_dist = abs(nose.y - forehead.y)
-                bottom_dist = abs(nose.y - chin.y)
-
-                vertical_ratio = min(top_dist, bottom_dist) / max(top_dist, bottom_dist)
-                horizontal_ratio = min(left_dist, right_dist) / max(left_dist, right_dist)
-
-                if horizontal_ratio < self.HORIZONTAL_RATIO_THRESHOLD or vertical_ratio < self.VERTICAL_RATIO_THRESHOLD:
-                    self.closed_frame_count = 0
-                    self.current_state = "FACE TURNED"
-                    self.current_color = (255, 255, 0)
-                elif left_ear < self.ear_threshold and right_ear < self.ear_threshold:
+                # logic for classification
+                if left_ear < self.ear_threshold and right_ear < self.ear_threshold:
                     self.closed_frame_count += 1
+                    self.wink_frame_count = 0
                     if self.closed_frame_count >= self.CONSEC_FRAMES:
                         self.current_state = "CLOSED"
                         self.current_color = (0, 0, 255)
                 elif left_ear < self.ear_threshold and right_ear >= self.ear_threshold:
                     self.closed_frame_count = 0
-                    self.current_state = "RIGHT WINK"
-                    self.current_color = (0, 255, 255)
+                    self.wink_frame_count += 1
+                    if self.wink_frame_count >= self.CONSEC_FRAMES:
+                        self.current_state = "RIGHT WINK"
+                        self.current_color = (0, 255, 255)
                 elif right_ear < self.ear_threshold and left_ear >= self.ear_threshold:
                     self.closed_frame_count = 0
-                    self.current_state = "LEFT WINK"
-                    self.current_color = (0, 255, 255)
+                    self.wink_frame_count += 1
+                    if self.wink_frame_count >= self.CONSEC_FRAMES:
+                        self.current_state = "LEFT WINK"
+                        self.current_color = (0, 255, 255)
                 else:
                     self.closed_frame_count = 0
+                    self.wink_frame_count = 0
                     self.current_state = "OPEN"
                     self.current_color = (0, 255, 0)
-
+                # displaying ttext
                 cv2.putText(frame, f"L EAR: {left_ear:.2f}", (30, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
                 cv2.putText(frame, f"R EAR: {right_ear:.2f}", (30, 60),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
                 cv2.putText(frame, f"State: {self.current_state}", (30, 90),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, self.current_color, 2)
+                cv2.putText(frame, f"Frame: {self.frame_count}", (30, 120),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             else:
                 # one or both eyes have invalid landmarks
                 self.closed_frame_count = 0
@@ -189,15 +183,21 @@ class EyeTracker:
         """
         while self.cap.isOpened():
             ret, frame = self.cap.read()
-            if not ret:
+            if not ret: # camera disconnected
                 break
 
+            self.frame_count += 1
             frame = self.process_frame(frame)
+            # print detection status to console at configured interval
+
+            if self.frame_count % self.console_print_every == 0:
+                print(f"Frame {self.frame_count} | State: {self.current_state}")
+
             cv2.imshow("Eye Tracker", frame)
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord('q'):  # press q to exit
                 break
-
+        # release resources upon exit
         self.cap.release()
         self.face_mesh.close()
         cv2.destroyAllWindows()
@@ -223,7 +223,7 @@ class EyeTracker:
         return True
     
 if __name__ == "__main__":
-    tracker = EyeTracker()
+    tracker = EyeTracker(ear_threshold=0.2) # can config threshold accordingly
     tracker.run()
 
 
