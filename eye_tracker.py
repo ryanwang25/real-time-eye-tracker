@@ -183,7 +183,8 @@ class EyeTracker:
         """
         while self.cap.isOpened():
             ret, frame = self.cap.read()
-            if not ret: # camera disconnected
+            if not ret:
+                print("Error: Failed to read frame from webcam") # camera disconnected
                 break
 
             self.frame_count += 1
